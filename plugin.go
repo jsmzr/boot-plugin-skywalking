@@ -34,7 +34,6 @@ func (s *SkywalkingPlugin) Load() error {
 	if err != nil {
 		return err
 	}
-	defer r.Close()
 	tracer, err := go2sky.NewTracer(*properties.Name, go2sky.WithReporter(r))
 	if err != nil {
 		return err
