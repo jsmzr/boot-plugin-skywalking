@@ -1,57 +1,47 @@
 package plugin
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/SkyAPM/go2sky"
 	"github.com/SkyAPM/go2sky/reporter"
-	config "github.com/jsmzr/boot-config"
 	plugin "github.com/jsmzr/boot-plugin"
+	"github.com/spf13/viper"
 )
 
 type SkywalkingPlugin struct{}
 
-type SkywalkingProperties struct {
-	Address *string
-	Enabled *bool
-	Name    *string
-}
+const configPrefix = "boot.skywalking"
+
+var defaultConfig map[string]interface{} = map[string]interface{}{"enabled": true, "order": 40, "name": "boot-skywalking"}
 
 var t *go2sky.Tracer
 
 func (s *SkywalkingPlugin) Load() error {
-	var properties SkywalkingProperties
-	if err := config.Resolve("boot.skywalking", &properties); err != nil {
-		return err
+	address := viper.GetString(configPrefix + ".address")
+	if address == "" {
+		return fmt.Errorf("skywalking backend address is null")
 	}
-	if properties.Name == nil {
-		return errors.New("skywalking name is nil")
-	}
-	if properties.Address == nil {
-		return errors.New("skywalking address should not be nil")
-	}
-	r, err := reporter.NewGRPCReporter(*properties.Address)
+	r, err := reporter.NewGRPCReporter(address)
 	if err != nil {
 		return err
 	}
-	tracer, err := go2sky.NewTracer(*properties.Name, go2sky.WithReporter(r))
-	if err != nil {
+	name := viper.GetString(configPrefix + ".name")
+	if tracer, err := go2sky.NewTracer(name, go2sky.WithReporter(r)); err != nil {
 		return err
+	} else {
+		t = tracer
+
+		return nil
 	}
-	t = tracer
-	return nil
 }
 
 func (s *SkywalkingPlugin) Enabled() bool {
-	enabled, ok := config.Get("boot.skywalking.enabeld")
-	if ok {
-		return enabled.Bool()
-	}
-	return true
+	return viper.GetBool(configPrefix + ".enabled")
 }
 
 func (s *SkywalkingPlugin) Order() int {
-	return 200
+	return viper.GetInt(configPrefix + ".order")
 }
 
 func GetTracer() *go2sky.Tracer {
@@ -59,5 +49,8 @@ func GetTracer() *go2sky.Tracer {
 }
 
 func init() {
+	for key := range defaultConfig {
+		viper.SetDefault(configPrefix+"."+key, defaultConfig[key])
+	}
 	plugin.Register("skywalking", &SkywalkingPlugin{})
 }
